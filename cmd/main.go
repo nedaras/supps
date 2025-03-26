@@ -1,6 +1,9 @@
 package main
 
 import (
+	"math/bits"
+	"strconv"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -40,11 +43,11 @@ func main() {
   for {
     switch ev := s.PollEvent().(type) {
     case *tcell.EventKey:
-      if ev.Key() == tcell.KeyUp {
-        state.Idx = (state.Idx + 1) % state.Idxs
+      if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
+        state.Idx = (state.Idx + state.Idxs - 1) % state.Idxs
       }
 
-      if ev.Key() == tcell.KeyDown {
+      if (ev.Key() == tcell.KeyDown) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'j') {
         state.Idx = (state.Idx + 1) % state.Idxs
       }
 
@@ -55,6 +58,7 @@ func main() {
       if state.Flags & 0x3 != 0 {
         state.Idxs = 4
       } else {
+        state.Flags = state.Flags & 0x3
         state.Idxs = 2
       }
 
@@ -72,11 +76,16 @@ func render(s tcell.Screen) {
   white := tcell.StyleDefault.Foreground(tcell.ColorWhite)
   gray := tcell.StyleDefault.Foreground(tcell.ColorGray)
 
-  text(s, 0, 0, "┌────────────────┐", gray)
-  text(s, 0, 1, "│    ", gray)
+  text(s, 0, 0, "┌────────────────┬────────────────────┐", gray)
+  text(s, 0, 1, "│                │                    │", gray)
+  text(s, 0, 2, "└────────────────┴────────────────────┘", gray)
+
   text(s, 5, 1, "supps.go", white.Bold(true))
-  text(s, 13, 1, "    │", gray)
-  text(s, 0, 2, "└────────────────┘", gray)
+  text(s, 22, 1, "p", white)
+  text(s, 24, 1, "products", gray)
+  text(s, 33, 1, strconv.Itoa(bits.OnesCount8(state.Flags >> 2)), white)
+
+  text(s, 0, 16, "───────────────────────────────────────", gray)
 
   mrbiceps := gray
   myprotein := gray
@@ -96,25 +105,25 @@ func render(s tcell.Screen) {
     return "○"
   }
 
-	text(s, 0, 4, "~ select shops ~", white)
-	text(s, 0, 5, prefix(MrBiceps) + " MrBiceps         ", mrbiceps)
-	text(s, 0, 6, prefix(MyProtein) + " MyProtein        ", myprotein)
+	text(s, 1, 4, "~ select shops ~", white)
+	text(s, 0, 5, " " + prefix(MrBiceps) + " MrBiceps          ", mrbiceps)
+	text(s, 0, 6, " " + prefix(MyProtein) + " MyProtein         ", myprotein)
 
   if state.Flags & 0x3 != 0 {
     proteine := gray
     creteine := gray
 
     if state.Idx == Protein {
-      proteine = white.Background(tcell.ColorBlack)
+      proteine = white.Background(tcell.ColorRed)
     }
 
     if state.Idx == Creatine {
       creteine = white.Background(tcell.ColorBlack)
     }
 
-    text(s, 0, 8, "~ select products ~", white)
-    text(s, 0, 9, prefix(Protein) + " protein          ", proteine)
-    text(s, 0, 10, prefix(Creatine) + " creatine         ", creteine)
+    text(s, 1, 8, "~ select products ~", white)
+    text(s, 0, 9, " " + prefix(Protein) + " protein           ", proteine)
+    text(s, 0, 10, " " + prefix(Creatine) + " creatine          ", creteine)
   }
 }
 
