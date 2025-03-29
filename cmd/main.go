@@ -76,16 +76,19 @@ func render(s tcell.Screen) {
   white := tcell.StyleDefault.Foreground(tcell.ColorWhite)
   gray := tcell.StyleDefault.Foreground(tcell.ColorGray)
 
-  text(s, 0, 0, "┌────────────────┬────────────────────┐", gray)
-  text(s, 0, 1, "│                │                    │", gray)
-  text(s, 0, 2, "└────────────────┴────────────────────┘", gray)
+  text(s, 0, 0, "┌────────────────┬───────────────────┬────────────────────┐", gray)
+  text(s, 0, 1, "│                │                   │                    │", gray)
+  text(s, 0, 2, "└────────────────┴───────────────────┴────────────────────┘", gray)
 
   text(s, 5, 1, "supps.go", white.Bold(true))
-  text(s, 22, 1, "p", white)
-  text(s, 24, 1, "products", gray)
-  text(s, 33, 1, strconv.Itoa(bits.OnesCount8(state.Flags >> 2)), white)
 
-  text(s, 0, 16, "───────────────────────────────────────", gray)
+  text(s, 22, 1, "s selection", white)
+
+  text(s, 42, 1, "p", white)
+  text(s, 44, 1, "products", gray)
+  text(s, 53, 1, strconv.Itoa(bits.OnesCount8(state.Flags >> 2)), white)
+
+  text(s, 0, 16, "───────────────────────────────────────────────────────────", gray)
 
   mrbiceps := gray
   myprotein := gray
@@ -105,9 +108,9 @@ func render(s tcell.Screen) {
     return "○"
   }
 
-	text(s, 1, 4, "~ select shops ~", white)
-	text(s, 0, 5, " " + prefix(MrBiceps) + " MrBiceps          ", mrbiceps)
-	text(s, 0, 6, " " + prefix(MyProtein) + " MyProtein         ", myprotein)
+	text(s, 2, 4, "~ select shops ~", white)
+	text(s, 1, 5, " " + prefix(MrBiceps) + " MrBiceps          ", mrbiceps)
+	text(s, 1, 6, " " + prefix(MyProtein) + " MyProtein         ", myprotein)
 
   if state.Flags & 0x3 != 0 {
     proteine := gray
@@ -121,9 +124,9 @@ func render(s tcell.Screen) {
       creteine = white.Background(tcell.ColorBlack)
     }
 
-    text(s, 1, 8, "~ select products ~", white)
-    text(s, 0, 9, " " + prefix(Protein) + " protein           ", proteine)
-    text(s, 0, 10, " " + prefix(Creatine) + " creatine          ", creteine)
+    text(s, 2, 8, "~ select products ~", white)
+    text(s, 1, 9, " " + prefix(Protein) + " protein           ", proteine)
+    text(s, 1, 10, " " + prefix(Creatine) + " creatine          ", creteine)
   }
 }
 
