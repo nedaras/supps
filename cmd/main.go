@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"math/bits"
+	"net/http"
 	"strconv"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -28,6 +31,57 @@ const (
 )
 
 func main() {
+
+	if (true) {
+		r, err := http.Get("https://www.mrbiceps.lt/maisto-papildai/qnt-delicious-whey-protein/")
+		if err != nil {
+			panic(err)
+		}
+		defer r.Body.Close()
+
+		res, err := goquery.NewDocumentFromReader(r.Body)
+		if err != nil {
+			panic(err)
+		}
+
+		elements := res.Find("div.product_element")
+		if elements.Length() == 0 {
+			panic("nesigma")
+		}
+
+		links := make([]string, elements.Length())
+
+		res.Find("div.product_element").Each(func(i int, s *goquery.Selection) {
+			// text := s.Find(".title").Text()
+			link := s.Find("a").AttrOr("href", "")
+			links[i] = link;
+			//fmt.Println("Title:", text, "URL", link)
+		})
+
+		for _, _ = range links {
+
+			r2, err := http.Get("https://www.mrbiceps.lt/maisto-papildai/qnt-delicious-whey-protein/")
+			if err != nil {
+				panic(err)
+			}
+			defer r2.Body.Close()
+
+			res, err = goquery.NewDocumentFromReader(r2.Body)
+			if err != nil {
+				panic(err)
+			}
+
+			rr := res.Text()
+			if rr == "" {
+				panic("err")
+			} else {
+				fmt.Println("no err")
+			}
+		}
+
+		panic("sad")
+	}
+
 	s, err := tcell.NewScreen()
 	if err != nil {
 		panic(err)
@@ -117,6 +171,9 @@ func render(s tcell.Screen) {
 	text(s, 0, 16, "───────────────────────────────────────────────────────────", gray)
 
 	if flag {
+
+		// No products selected.
+		println("Sigma\nnbohuafhgf\ngfregrrgerge\nijwheuegeurgiugrgeiygewr\n")
 
 	} else {
 		mrbiceps := gray
