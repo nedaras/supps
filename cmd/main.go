@@ -3,12 +3,11 @@ package main
 import (
 	"fmt"
 	"math/bits"
-	"net/http"
 	"strconv"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
+	"supps.go/pkg/mrbiceps"
 )
 
 type State = struct {
@@ -31,55 +30,22 @@ const (
 )
 
 func main() {
-
-	if (true) {
-		r, err := http.Get("https://www.mrbiceps.lt/maisto-papildai/qnt-delicious-whey-protein/")
+	if true {
+		p, err := mrbiceps.GetProductsData()
 		if err != nil {
 			panic(err)
 		}
-		defer r.Body.Close()
+		fmt.Println("len:", p.Length())
 
-		res, err := goquery.NewDocumentFromReader(r.Body)
-		if err != nil {
-			panic(err)
-		}
 
-		elements := res.Find("div.product_element")
-		if elements.Length() == 0 {
-			panic("nesigma")
-		}
-
-		links := make([]string, elements.Length())
-
-		res.Find("div.product_element").Each(func(i int, s *goquery.Selection) {
-			// text := s.Find(".title").Text()
-			link := s.Find("a").AttrOr("href", "")
-			links[i] = link;
-			//fmt.Println("Title:", text, "URL", link)
+		err = p.Each(func(i int, p mrbiceps.Product) {
+			fmt.Printf("p: %v\n", p)
 		})
 
-		for _, _ = range links {
-
-			r2, err := http.Get("https://www.mrbiceps.lt/maisto-papildai/qnt-delicious-whey-protein/")
-			if err != nil {
-				panic(err)
-			}
-			defer r2.Body.Close()
-
-			res, err = goquery.NewDocumentFromReader(r2.Body)
-			if err != nil {
-				panic(err)
-			}
-
-			rr := res.Text()
-			if rr == "" {
-				panic("err")
-			} else {
-				fmt.Println("no err")
-			}
+		if err != nil {
+			panic(err)
 		}
 
-		panic("sad")
 	}
 
 	s, err := tcell.NewScreen()
