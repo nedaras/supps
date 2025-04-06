@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/bits"
+	"sort"
 	"strconv"
 
 	"github.com/gdamore/tcell/v2"
@@ -37,15 +38,21 @@ func main() {
 		}
 		fmt.Println("len:", p.Length())
 
-
+		ps := make([]mrbiceps.Product, 0, p.Length())
 		err = p.Each(func(i int, p mrbiceps.Product) {
-			fmt.Printf("p: %v\n", p)
+			ps = append(ps, p)
 		})
-
 		if err != nil {
 			panic(err)
 		}
 
+		sort.Slice(ps, func(i, j int) bool {
+			return ps[i].Value > ps[j].Value
+		})
+
+		for _, p := range ps {
+			fmt.Printf("p: %v\n", p)
+		}
 	}
 
 	s, err := tcell.NewScreen()

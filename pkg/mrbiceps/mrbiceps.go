@@ -19,8 +19,8 @@ type ProductsData struct {
 
 type Product struct {
 	Name  string
-	Price string
-	Value string
+	Price float64 
+	Value float64
 }
 
 func (p ProductsData) Length() int {
@@ -28,9 +28,10 @@ func (p ProductsData) Length() int {
 }
 
 func (p ProductsData) Each(f func(int, Product)) error { // make smth like worker threads
-	reg := regexp.MustCompile(`\d{2,}`)
+	reg := regexp.MustCompile(`\d{2,}(,\d+)?`)
+	i := 0;
 
-	for i, l := range p.hrefs {
+	for _, l := range p.hrefs {
 		req, err := http.NewRequest("GET", l, nil)
 		if err != nil {
 			return err
@@ -45,7 +46,7 @@ func (p ProductsData) Each(f func(int, Product)) error { // make smth like worke
 		defer res.Body.Close()
 
 		if res.StatusCode != http.StatusOK { // check for RateLImited
-			return fmt.Errorf("bad status code");
+			return fmt.Errorf("bad status code")
 		}
 
 		doc, err := goquery.NewDocumentFromReader(res.Body)
@@ -61,47 +62,86 @@ func (p ProductsData) Each(f func(int, Product)) error { // make smth like worke
 
 		rows := table.First().Find("tr")
 		if rows.Length() == 0 {
-			return fmt.Errorf("outdated");
+			return fmt.Errorf("outdated")
 		}
 
-		cols := rows.First().Children();
+		cols := rows.First().Children()
 
-		idx := -1;
+		idx := -1
 
-		total := 0
-		fraction := 0
+		price := 0.0
+		amount := 0.0
+
+		total := 0.0
+		fraction := 0.0
 
 		for i := range cols.Length() {
 			if match := reg.FindString(cols.Eq(i).Text()); match != "" {
+				f, err := strconv.ParseFloat(strings.Replace(match, ",", ".", 1), 64)
+				if err != nil {
+					panic(err)
+				}
+
 				idx = i
-				total , _ = strconv.Atoi(match)
-				break;
+				total = f
+
+				break
 			}
 		}
 
 		if idx == -1 {
-			return fmt.Errorf("outdated");
+			return fmt.Errorf("outdated")
 		}
 
-		for i = 1; i < rows.Length(); i++ {
+		for i := 1; i < rows.Length(); i++ {
 			cols := rows.Eq(i).Find("td")
 			if (strings.Contains(strings.TrimSpace(cols.Eq(0).Text()), "Baltym")) {
 				if match := reg.FindString(cols.Eq(idx).Text()); match != "" {
-					fraction, _ = strconv.Atoi(match)
+					f, err := strconv.ParseFloat(strings.Replace(match, ",", ".", 1), 64)
+					if err != nil {
+						panic(err)
+					}
+
+					fraction = f
 				} else {
-					return fmt.Errorf("outdated");
+					return fmt.Errorf("outdated")
 				}
-				break;
+				break
 			}
 		}
 
-		fmt.Println("total:", total, "fraction", fraction)
+		if match := reg.FindString(doc.Find("div.current_price").Text()); match != "" {
+			f, err := strconv.ParseFloat(strings.Replace(match, ",", ".", 1), 64)
+			if err != nil {
+				panic(err)
+			}
+
+			price = f
+		} else {
+			return fmt.Errorf("outdated")
+		}
+
+		if match := reg.FindString(doc.Find(".items .col-xs-7").Text()); match != "" {
+			f, err := strconv.ParseFloat(strings.Replace(match, ",", ".", 1), 64)
+			if err != nil {
+				panic(err)
+			}
+
+			amount = f
+		} else {
+			return fmt.Errorf("outdated")
+		}
+
+		normalized := fraction * (1.0 / total)
+		value := (normalized * amount)/ price
 
 		f(i, Product{
 			Name: doc.Find("div.summary_wrp > h1").Text(),
-			Price: strings.TrimSpace(doc.Find("div.current_price").Text()),
-			Value: "",
+			Price: price,
+			Value: value,
 		})
+		i++
+
 	}
 	return nil
 }
@@ -109,8 +149,8 @@ func (p ProductsData) Each(f func(int, Product)) error { // make smth like worke
 func GetProductsData() (ProductsData, error) {
 	client := &http.Client{}
 
-	link := "https://www.mrbiceps.lt/maisto-papildai/papildai/baltymai-proteinas/";
-	page := "";
+	link := "https://www.mrbiceps.lt/maisto-papildai/papildai/baltymai-proteinas/"
+	page := ""
 
 	hrefs := []string{}
 
@@ -129,7 +169,7 @@ func GetProductsData() (ProductsData, error) {
 		defer res.Body.Close()
 
 		if res.StatusCode != http.StatusOK { // check for RateLImited
-			return ProductsData{}, fmt.Errorf("bad status code");
+			return ProductsData{}, fmt.Errorf("bad status code")
 		}
 
 		doc, err := goquery.NewDocumentFromReader(res.Body)
@@ -140,7 +180,7 @@ func GetProductsData() (ProductsData, error) {
 		products := doc.Find("div.product_element")
 		
 		if products.Length() == 0 {
-			return ProductsData{}, fmt.Errorf("outdated");
+			return ProductsData{}, fmt.Errorf("outdated")
 		}
 
 		flag := false
@@ -154,9 +194,9 @@ func GetProductsData() (ProductsData, error) {
 			}
 
 			if flag {
-				l, ok := s.Find("a").Attr("href");
+				l, ok := s.Find("a").Attr("href")
 				if !ok {
-					return ProductsData{}, fmt.Errorf("outdated");
+					return ProductsData{}, fmt.Errorf("outdated")
 				}
 
 				links[i] = l
@@ -166,23 +206,23 @@ func GetProductsData() (ProductsData, error) {
 		hrefs = append(hrefs, links...)
 
 		if (products.Length() != len(links)) {
-			break;
+			break
 		}
 
 		s := doc.Find("a.pagination_link")
 		if (s.Length() != 2) {
-			return ProductsData{}, fmt.Errorf("outdated");
+			return ProductsData{}, fmt.Errorf("outdated")
 		}
 
-		p, ok := s.Eq(1).Attr("href");
+		p, ok := s.Eq(1).Attr("href")
 		page = p
 
 		if !ok {
-			return ProductsData{}, fmt.Errorf("outdated");
+			return ProductsData{}, fmt.Errorf("outdated")
 		}
 
 		if (page == "#") {
-			break;
+			break
 		}
 	}
 
