@@ -36,10 +36,11 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("len:", p.Length())
+		fmt.Println("atleast:", p.Minimum())
 
-		ps := make([]mrbiceps.Product, 0, p.Length())
+		ps := make([]mrbiceps.Product, 0, p.Minimum())
 		err = p.Each(func(i int, p mrbiceps.Product) {
+			fmt.Printf("i: %v\n", i)
 			ps = append(ps, p)
 		})
 		if err != nil {
