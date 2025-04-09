@@ -15,15 +15,13 @@ type State struct {
 	Idx   	 uint8
 	Idxs  	 uint8
 	Flags 	 uint8
-	Fetching bool
+	Fetching bool // could make into flags but no real point
+	Cursor   int
 	Products []mrbiceps.Product
 }
 
 var state State = State{
-	Idx:   0,
 	Idxs:  2,
-	Flags: 0,
-	Products: []mrbiceps.Product{},
 }
 
 const (
@@ -59,7 +57,8 @@ func main() {
 			if flag {
 				if ev.Key() == tcell.KeyEnter {
 					state.Products = []mrbiceps.Product{}
-					state.Fetching = true;
+					state.Fetching = true
+					state.Cursor = 0
 
 					s.Clear()
 					render(s)
@@ -85,7 +84,7 @@ func main() {
 						return state.Products[i].Value > state.Products[j].Value
 					})
 
-					state.Fetching = false;
+					state.Fetching = false
 
 					s.Clear()
 					render(s)
@@ -95,6 +94,15 @@ func main() {
 						panic(err)
 					}
 				}
+
+				if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
+					state.Cursor = (state.Cursor + len(state.Products) - 1) % len(state.Products) 
+				}
+
+				if (ev.Key() == tcell.KeyDown) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'j') {
+					state.Cursor = (state.Cursor + 1) % len(state.Products)
+				}
+
 			} else {
 				if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
 					state.Idx = (state.Idx + state.Idxs - 1) % state.Idxs
@@ -168,17 +176,25 @@ func render(s tcell.Screen) {
 		}
 
 		if !state.Fetching && len(state.Products) >= 3 {
-			for i := range 3 {
-				text(s, 0, 4 + i * 4, "┌─────────────────────────────────────────────────────────┐", gray)
-				text(s, 0, 5 + i * 4, "│                                                         │", gray)
-				text(s, 0, 6 + i * 4, "│                                                         │", gray)
-				text(s, 0, 7 + i * 4, "└─────────────────────────────────────────────────────────┘", gray)
-
+			for i := state.Cursor; i < len(state.Products) && i < state.Cursor + 3; i++ {
 				product := state.Products[i]
-				text(s, 2, 5 + i * 4, product.Name, white)
-				text(s, 48, 5 + i * 4, fmt.Sprintf("%.2f €", product.Price), gray)
+				y := i - state.Cursor
+				// perhaps would not be bad to have that slide indicator
 
-				text(s, 2, 6 + i * 4, fmt.Sprintf("%.2f g/€", product.Value), gray)
+				hi := gray
+				if i == state.Cursor {
+					hi = white
+				}
+
+				text(s, 0, 4 + y * 4, "┌─────────────────────────────────────────────────────────┐", hi)
+				text(s, 0, 5 + y * 4, "│                                                         │", hi)
+				text(s, 0, 6 + y * 4, "│                                                         │", hi)
+				text(s, 0, 7 + y * 4, "└─────────────────────────────────────────────────────────┘", hi)
+
+				text(s, 2, 5 + y * 4, product.Name, white)
+				text(s, 48, 5 + y * 4, fmt.Sprintf("%.2f €", product.Price), gray)
+
+				text(s, 2, 6 + y * 4, fmt.Sprintf("%.2f g/€", product.Value), gray)
 			}
 		}
 
