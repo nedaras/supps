@@ -55,7 +55,7 @@ func main() {
 			}
 
 			if flag {
-				if ev.Key() == tcell.KeyEnter {
+				if ev.Key() == tcell.KeyEnter && bits.OnesCount8(state.Flags&0b01111100) != 0 {
 					state.Products = []mrbiceps.Product{}
 					state.Fetching = true
 					state.Cursor = 0
@@ -96,11 +96,11 @@ func main() {
 				}
 
 				if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
-					state.Cursor = (state.Cursor + len(state.Products) - 1) % len(state.Products) 
+					state.Cursor = max(state.Cursor - 1, 0)
 				}
 
 				if (ev.Key() == tcell.KeyDown) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'j') {
-					state.Cursor = (state.Cursor + 1) % len(state.Products)
+					state.Cursor = min(state.Cursor + 1, len(state.Products) - 1)
 				}
 
 			} else {
@@ -170,34 +170,36 @@ func render(s tcell.Screen) {
 	text(s, 0, 18, "───────────────────────────────────────────────────────────", gray)
 
 	if flag {
-		if state.Fetching && len(state.Products) != 0 {
-			product := state.Products[len(state.Products) - 1]
-			text(s, 1, 17, product.Name + "...", gray)
+		if products == 0 {
+			text(s, 19, 9, "No products selected.", gray)
 		}
 
-		if !state.Fetching && len(state.Products) >= 3 {
-			for i := state.Cursor; i < len(state.Products) && i < state.Cursor + 3; i++ {
-				product := state.Products[i]
-				y := i - state.Cursor
-				// perhaps would not be bad to have that slide indicator
+		if len(state.Products) != 0 {
+			if state.Fetching {
+				product := state.Products[len(state.Products) - 1]
+				text(s, 1, 17, product.Name + "...", gray)
+			} else {
+				for i := state.Cursor; i < len(state.Products) && i < state.Cursor + 3; i++ {
+					product := state.Products[i]
+					y := i - state.Cursor
 
-				hi := gray
-				if i == state.Cursor {
-					hi = white
+					hi := gray
+					if i == state.Cursor {
+						hi = white
+					}
+
+					text(s, 0, 4 + y * 4, "┌─────────────────────────────────────────────────────────┐", hi)
+					text(s, 0, 5 + y * 4, "│                                                         │", hi)
+					text(s, 0, 6 + y * 4, "│                                                         │", hi)
+					text(s, 0, 7 + y * 4, "└─────────────────────────────────────────────────────────┘", hi)
+
+					text(s, 2, 5 + y * 4, product.Name, white) // add like ... if like u know like u know like aaaaaaaaaaaa... │
+					text(s, 48, 5 + y * 4, fmt.Sprintf("%.2f €", product.Price), gray)
+
+					text(s, 2, 6 + y * 4, fmt.Sprintf("%.2f g/€", product.Value), gray)
 				}
-
-				text(s, 0, 4 + y * 4, "┌─────────────────────────────────────────────────────────┐", hi)
-				text(s, 0, 5 + y * 4, "│                                                         │", hi)
-				text(s, 0, 6 + y * 4, "│                                                         │", hi)
-				text(s, 0, 7 + y * 4, "└─────────────────────────────────────────────────────────┘", hi)
-
-				text(s, 2, 5 + y * 4, product.Name, white)
-				text(s, 48, 5 + y * 4, fmt.Sprintf("%.2f €", product.Price), gray)
-
-				text(s, 2, 6 + y * 4, fmt.Sprintf("%.2f g/€", product.Value), gray)
 			}
 		}
-
 	} else {
 		mrbiceps := gray
 		myprotein := gray
