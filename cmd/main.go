@@ -11,16 +11,19 @@ import (
 	"supps.go/pkg/mrbiceps"
 )
 
-type State = struct {
-	Idx   uint8
-	Idxs  uint8
-	Flags uint8
+type State struct {
+	Idx   	 uint8
+	Idxs  	 uint8
+	Flags 	 uint8
+	Fetching bool
+	Products []mrbiceps.Product
 }
 
 var state State = State{
 	Idx:   0,
 	Idxs:  2,
 	Flags: 0,
+	Products: []mrbiceps.Product{},
 }
 
 const (
@@ -31,31 +34,6 @@ const (
 )
 
 func main() {
-	if true {
-		p, err := mrbiceps.GetProductsData()
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("atleast:", p.Minimum())
-
-		ps := make([]mrbiceps.Product, 0, p.Minimum())
-		err = p.Each(func(i int, p mrbiceps.Product) {
-			fmt.Printf("i: %v\n", i)
-			ps = append(ps, p)
-		})
-		if err != nil {
-			panic(err)
-		}
-
-		sort.Slice(ps, func(i, j int) bool {
-			return ps[i].Value > ps[j].Value
-		})
-
-		for _, p := range ps {
-			fmt.Printf("p: %v\n", p)
-		}
-	}
-
 	s, err := tcell.NewScreen()
 	if err != nil {
 		panic(err)
@@ -79,6 +57,44 @@ func main() {
 			}
 
 			if flag {
+				if ev.Key() == tcell.KeyEnter {
+					state.Products = []mrbiceps.Product{}
+					state.Fetching = true;
+
+					s.Clear()
+					render(s)
+					s.Show()
+
+					products, err := mrbiceps.GetProductsData()
+					if err != nil {
+						panic(err)
+					}
+
+					state.Products = make([]mrbiceps.Product, 0, products.Minimum())
+
+					// make this more smth like an event idk
+					err = products.Each(func(i int, p mrbiceps.Product) {
+						state.Products = append(state.Products, p)
+
+						s.Clear()
+						render(s)
+						s.Show()
+					})
+
+					sort.Slice(state.Products, func(i, j int) bool {
+						return state.Products[i].Value > state.Products[j].Value
+					})
+
+					state.Fetching = false;
+
+					s.Clear()
+					render(s)
+					s.Show()
+
+					if err != nil {
+						panic(err)
+					}
+				}
 			} else {
 				if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
 					state.Idx = (state.Idx + state.Idxs - 1) % state.Idxs
@@ -118,6 +134,7 @@ func render(s tcell.Screen) {
 	white := tcell.StyleDefault.Foreground(tcell.ColorWhite)
 	gray := tcell.StyleDefault.Foreground(tcell.ColorGray)
 	flag := state.Flags&0b10000000 != 0
+	products := bits.OnesCount8(state.Flags&0b01111100)
 
 	text(s, 0, 0, "┌────────────────┬───────────────────┬────────────────────┐", gray)
 	text(s, 0, 1, "│                │                   │                    │", gray)
@@ -140,14 +157,30 @@ func render(s tcell.Screen) {
 		text(s, 44, 1, "products", gray)
 	}
 
-	text(s, 53, 1, strconv.Itoa(bits.OnesCount8(state.Flags&0b01111100)), white)
+	text(s, 53, 1, strconv.Itoa(products), white)
 
-	text(s, 0, 16, "───────────────────────────────────────────────────────────", gray)
+	text(s, 0, 18, "───────────────────────────────────────────────────────────", gray)
 
 	if flag {
+		if state.Fetching && len(state.Products) != 0 {
+			product := state.Products[len(state.Products) - 1]
+			text(s, 1, 17, product.Name + "...", gray)
+		}
 
-		// No products selected.
-		println("Sigma\nnbohuafhgf\ngfregrrgerge\nijwheuegeurgiugrgeiygewr\n")
+		if !state.Fetching && len(state.Products) >= 3 {
+			for i := range 3 {
+				text(s, 0, 4 + i * 4, "┌─────────────────────────────────────────────────────────┐", gray)
+				text(s, 0, 5 + i * 4, "│                                                         │", gray)
+				text(s, 0, 6 + i * 4, "│                                                         │", gray)
+				text(s, 0, 7 + i * 4, "└─────────────────────────────────────────────────────────┘", gray)
+
+				product := state.Products[i]
+				text(s, 2, 5 + i * 4, product.Name, white)
+				text(s, 48, 5 + i * 4, fmt.Sprintf("%.2f €", product.Price), gray)
+
+				text(s, 2, 6 + i * 4, fmt.Sprintf("%.2f g/€", product.Value), gray)
+			}
+		}
 
 	} else {
 		mrbiceps := gray

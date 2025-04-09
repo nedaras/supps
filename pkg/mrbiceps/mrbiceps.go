@@ -161,6 +161,8 @@ func worker(client *http.Client, work <-chan Work, result chan<- WorkResult, wg 
 	defer wg.Done()
 
 	reg := regexp.MustCompile(`\d{2,}(,\d+)?`)
+	reg2 := regexp.MustCompile(`\d+(,\d+)?`)
+
 	for task := range work {
 		func() { // remove this function
 			loop:
@@ -188,7 +190,6 @@ func worker(client *http.Client, work <-chan Work, result chan<- WorkResult, wg 
 			switch res.StatusCode {
 				case http.StatusOK: break
 			case http.StatusTooManyRequests:
-				fmt.Println("sleeping")
 				time.Sleep(time.Second * 3)
 				goto loop
 			default:
@@ -280,7 +281,7 @@ func worker(client *http.Client, work <-chan Work, result chan<- WorkResult, wg 
 				}
 			}
 
-			if match := reg.FindString(doc.Find("div.current_price").Text()); match != "" {
+			if match := reg2.FindString(doc.Find("div.current_price").Text()); match != "" {
 				f, err := strconv.ParseFloat(strings.Replace(match, ",", ".", 1), 64)
 				if err != nil {
 					panic(err)
@@ -315,7 +316,7 @@ func worker(client *http.Client, work <-chan Work, result chan<- WorkResult, wg 
 
 			result <- WorkResult{
 				product: Product{
-					Name: doc.Find("div.summary_wrp > h1").Text(),
+					Name: doc.Find("div.summary_wrp > h1").Text(), // strip that grams thingy
 					Price: price,
 					Value: value,
 				},
