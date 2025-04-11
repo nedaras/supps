@@ -12,16 +12,16 @@ import (
 )
 
 type State struct {
-	Idx   	 uint8
-	Idxs  	 uint8
-	Flags 	 uint8
+	Idx      uint8
+	Idxs     uint8
+	Flags    uint8
 	Fetching bool // could make into flags but no real point
 	Cursor   int
 	Products []mrbiceps.Product
 }
 
 var state State = State{
-	Idxs:  2,
+	Idxs: 2,
 }
 
 const (
@@ -45,91 +45,95 @@ func main() {
 	render(s)
 	s.Show()
 
+	eventCh := make(chan tcell.Event)
+	productCh := make(chan mrbiceps.Product)
+
+	go func() {
+		i := 0
+		for {
+			eventCh <- s.PollEvent()
+			i++
+		}
+	}()
+
+	fetchProducts := func() {
+		products, err := mrbiceps.GetProductsData()
+		if err != nil {
+			panic(err)
+		}
+
+		err = products.Each(func(i int, p mrbiceps.Product) {
+			productCh <- p
+		})
+
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	for {
-		switch ev := s.PollEvent().(type) {
-		case *tcell.EventKey:
-			flag := state.Flags&0b10000000 != 0
+		select {
+		case product := <-productCh:
+			state.Products = append(state.Products, product)
+			state.Fetching = false
 
-			if ev.Key() == tcell.KeyRune && ev.Rune() == 'q' {
-				return
-			}
+			sort.Slice(state.Products, func(i, j int) bool {
+				return state.Products[i].Value > state.Products[j].Value
+			})
+		case event := <-eventCh:
+			switch ev := (event).(type) {
+			case *tcell.EventKey:
+				flag := state.Flags&0b10000000 != 0
 
-			if flag {
-				if ev.Key() == tcell.KeyEnter && bits.OnesCount8(state.Flags&0b01111100) != 0 {
-					state.Products = []mrbiceps.Product{}
-					state.Fetching = true
-					state.Cursor = 0
+				if ev.Key() == tcell.KeyRune && ev.Rune() == 'q' {
+					return
+				}
 
-					s.Clear()
-					render(s)
-					s.Show()
+				if flag {
+					if ev.Key() == tcell.KeyEnter && bits.OnesCount8(state.Flags&0b01111100) != 0 {
+						state.Products = []mrbiceps.Product{}
+						state.Fetching = true
+						state.Cursor = 0
 
-					products, err := mrbiceps.GetProductsData()
-					if err != nil {
-						panic(err)
+						go fetchProducts() // we need the like fineshed event or smthc even err event
 					}
 
-					state.Products = make([]mrbiceps.Product, 0, products.Minimum())
-
-					// make this more smth like an event idk
-					err = products.Each(func(i int, p mrbiceps.Product) {
-						state.Products = append(state.Products, p)
-
-						s.Clear()
-						render(s)
-						s.Show()
-					})
-
-					sort.Slice(state.Products, func(i, j int) bool {
-						return state.Products[i].Value > state.Products[j].Value
-					})
-
-					state.Fetching = false
-
-					s.Clear()
-					render(s)
-					s.Show()
-
-					if err != nil {
-						panic(err)
+					if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
+						state.Cursor = max(state.Cursor-1, 0)
 					}
-				}
 
-				if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
-					state.Cursor = max(state.Cursor - 1, 0)
-				}
+					if (ev.Key() == tcell.KeyDown) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'j') {
+						state.Cursor = min(state.Cursor+1, len(state.Products)-1)
+					}
 
-				if (ev.Key() == tcell.KeyDown) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'j') {
-					state.Cursor = min(state.Cursor + 1, len(state.Products) - 1)
-				}
-
-			} else {
-				if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
-					state.Idx = (state.Idx + state.Idxs - 1) % state.Idxs
-				}
-
-				if (ev.Key() == tcell.KeyDown) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'j') {
-					state.Idx = (state.Idx + 1) % state.Idxs
-				}
-
-				if ev.Key() == tcell.KeyEnter {
-					state.Flags ^= (1 << state.Idx)
-				}
-
-				if state.Flags&0x3 != 0 {
-					state.Idxs = 4
 				} else {
-					state.Flags = state.Flags & 0b10000011
-					state.Idxs = 2
+					if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
+						state.Idx = (state.Idx + state.Idxs - 1) % state.Idxs
+					}
+
+					if (ev.Key() == tcell.KeyDown) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'j') {
+						state.Idx = (state.Idx + 1) % state.Idxs
+					}
+
+					if ev.Key() == tcell.KeyEnter {
+						state.Flags ^= (1 << state.Idx)
+					}
+
+					if state.Flags&0x3 != 0 {
+						state.Idxs = 4
+					} else {
+						state.Flags = state.Flags & 0b10000011
+						state.Idxs = 2
+					}
 				}
-			}
 
-			if ev.Key() == tcell.KeyRune && ev.Rune() == 's' {
-				state.Flags = state.Flags & 0b01111111
-			}
+				if ev.Key() == tcell.KeyRune && ev.Rune() == 's' {
+					state.Flags = state.Flags & 0b01111111
+				}
 
-			if ev.Key() == tcell.KeyRune && ev.Rune() == 'p' {
-				state.Flags = state.Flags | 0b10000000
+				if ev.Key() == tcell.KeyRune && ev.Rune() == 'p' {
+					state.Flags = state.Flags | 0b10000000
+				}
 			}
 		}
 		s.Clear()
@@ -142,7 +146,7 @@ func render(s tcell.Screen) {
 	white := tcell.StyleDefault.Foreground(tcell.ColorWhite)
 	gray := tcell.StyleDefault.Foreground(tcell.ColorGray)
 	flag := state.Flags&0b10000000 != 0
-	products := bits.OnesCount8(state.Flags&0b01111100)
+	products := bits.OnesCount8(state.Flags & 0b01111100)
 
 	text(s, 0, 0, "┌────────────────┬───────────────────┬────────────────────┐", gray)
 	text(s, 0, 1, "│                │                   │                    │", gray)
@@ -176,10 +180,10 @@ func render(s tcell.Screen) {
 
 		if len(state.Products) != 0 {
 			if state.Fetching {
-				product := state.Products[len(state.Products) - 1]
-				text(s, 1, 17, product.Name + "...", gray)
+				product := state.Products[len(state.Products)-1]
+				text(s, 1, 17, product.Name+"...", gray)
 			} else {
-				for i := state.Cursor; i < len(state.Products) && i < state.Cursor + 3; i++ {
+				for i := state.Cursor; i < len(state.Products) && i < state.Cursor+3; i++ {
 					product := state.Products[i]
 					y := i - state.Cursor
 
@@ -188,15 +192,15 @@ func render(s tcell.Screen) {
 						hi = white
 					}
 
-					text(s, 0, 4 + y * 4, "┌─────────────────────────────────────────────────────────┐", hi)
-					text(s, 0, 5 + y * 4, "│                                                         │", hi)
-					text(s, 0, 6 + y * 4, "│                                                         │", hi)
-					text(s, 0, 7 + y * 4, "└─────────────────────────────────────────────────────────┘", hi)
+					text(s, 0, 4+y*4, "┌─────────────────────────────────────────────────────────┐", hi)
+					text(s, 0, 5+y*4, "│                                                         │", hi)
+					text(s, 0, 6+y*4, "│                                                         │", hi)
+					text(s, 0, 7+y*4, "└─────────────────────────────────────────────────────────┘", hi)
 
-					text(s, 2, 5 + y * 4, product.Name, white) // add like ... if like u know like u know like aaaaaaaaaaaa... │
-					text(s, 48, 5 + y * 4, fmt.Sprintf("%.2f €", product.Price), gray)
+					text(s, 2, 5+y*4, product.Name, white) // add like ... if like u know like u know like aaaaaaaaaaaa... │
+					text(s, 48, 5+y*4, fmt.Sprintf("%.2f €", product.Price), gray)
 
-					text(s, 2, 6 + y * 4, fmt.Sprintf("%.2f g/€", product.Value), gray)
+					text(s, 2, 6+y*4, fmt.Sprintf("%.2f g/€", product.Value), gray)
 				}
 			}
 		}
