@@ -45,8 +45,13 @@ func main() {
 	render(s)
 	s.Show()
 
+	type Event struct {
+		product mrbiceps.Product
+		err     error
+	}
+
 	eventCh := make(chan tcell.Event)
-	productCh := make(chan mrbiceps.Product)
+	productCh := make(chan Event)
 
 	go func() {
 		i := 0
@@ -59,27 +64,47 @@ func main() {
 	fetchProducts := func() {
 		products, err := mrbiceps.GetProductsData()
 		if err != nil {
-			panic(err)
+			productCh <- Event{
+				product: mrbiceps.Product{},
+				err:     err,
+			}
 		}
 
 		err = products.Each(func(i int, p mrbiceps.Product) {
-			productCh <- p
+			productCh <- Event{
+				product: p,
+				err:     nil,
+			}
 		})
 
 		if err != nil {
-			panic(err)
+			productCh <- Event{
+				product: mrbiceps.Product{},
+				err:     err,
+			}
+		}
+
+		productCh <- Event{
+			product: mrbiceps.Product{},
+			err:     nil,
 		}
 	}
 
 	for {
 		select {
 		case product := <-productCh:
-			state.Products = append(state.Products, product)
-			state.Fetching = false
+			if product.err != nil {
+				panic(product.err)
+			}
 
-			sort.Slice(state.Products, func(i, j int) bool {
-				return state.Products[i].Value > state.Products[j].Value
-			})
+			if (product.product == mrbiceps.Product{}) {
+				state.Fetching = false
+				sort.Slice(state.Products, func(i, j int) bool {
+					return state.Products[i].Value > state.Products[j].Value
+				})
+			} else {
+				state.Products = append(state.Products, product.product)
+			}
 		case event := <-eventCh:
 			switch ev := (event).(type) {
 			case *tcell.EventKey:
@@ -90,12 +115,12 @@ func main() {
 				}
 
 				if flag {
-					if ev.Key() == tcell.KeyEnter && bits.OnesCount8(state.Flags&0b01111100) != 0 {
+					if !state.Fetching && ev.Key() == tcell.KeyEnter && bits.OnesCount8(state.Flags&0b01111100) != 0 {
 						state.Products = []mrbiceps.Product{}
 						state.Fetching = true
 						state.Cursor = 0
 
-						go fetchProducts() // we need the like fineshed event or smthc even err event
+						go fetchProducts()
 					}
 
 					if (ev.Key() == tcell.KeyUp) || (ev.Key() == tcell.KeyRune && ev.Rune() == 'k') {
@@ -173,6 +198,15 @@ func render(s tcell.Screen) {
 
 	text(s, 0, 18, "───────────────────────────────────────────────────────────", gray)
 
+	text(s, 13, 19, "↑/↓", white.Bold(true))
+	text(s, 17, 19, "items", gray)
+
+	text(s, 25, 19, "enter", white.Bold(true))
+	text(s, 31, 19, "select", gray)
+
+	text(s, 40, 19, "q", white.Bold(true))
+	text(s, 42, 19, "quit", gray)
+
 	if flag {
 		if products == 0 {
 			text(s, 19, 9, "No products selected.", gray)
@@ -203,6 +237,9 @@ func render(s tcell.Screen) {
 					text(s, 2, 6+y*4, fmt.Sprintf("%.2f g/€", product.Value), gray)
 				}
 			}
+		} else if products != 0 {
+			text(s, 19, 9, "Press       to query.", gray)
+			text(s, 25, 9, "enter", white.Bold(true))
 		}
 	} else {
 		mrbiceps := gray
